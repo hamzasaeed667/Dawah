@@ -7,5 +7,6 @@ module.exports = {
   tiktok: true,
   threads: true,
   dailymotion: true,
+  pinterest: true,
   reddit: false
 };

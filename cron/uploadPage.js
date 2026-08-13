@@ -8,6 +8,7 @@ const { uploadImageToLinkedIn } = require('../services/linkedin');
 const { uploadImageToTikTok } = require('../services/tiktok');
 const { uploadImageToThreads } = require('../services/threads');
 const { uploadImageToReddit } = require('../services/reddit');
+const { uploadPinToPinterest } = require('../services/pinterest');
 const { uploadVideoToDailymotion } = require('../services/dailymotion');
 const { getState, advancePage } = require('../utils/stateManager');
 const { retry } = require('../utils/retry');
@@ -118,6 +119,12 @@ async function uploadCronTask() {
   if (platforms.threads) {
     platformNames.push('Threads');
     uploads.push(retry(() => uploadImageToThreads(imageUrl, caption)));
+  }
+
+  // Pinterest
+  if (platforms.pinterest) {
+    platformNames.push('Pinterest');
+    uploads.push(retry(() => uploadPinToPinterest(imageUrl, `Page ${pageNo} | Purification of the Mind`, caption)));
   }
 
   // Reddit
