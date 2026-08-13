@@ -1,0 +1,57 @@
+name: Daily Social Media Automation
+
+on:
+  schedule:
+    # Runs daily at 00:17 UTC (unusual minute prevents GitHub runner load delays)
+    - cron: '17 0 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI anytime
+
+jobs:
+  run-daily-cron:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers & OS Dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Unit Tests
+        run: npm test
+
+      - name: Run Token Maintenance Cron Task
+        run: node -e "require('./cron/refreshTokens').refreshAllTokens()"
+
+      - name: Run Daily Image Upload Task
+        run: node -e "require('./cron/uploadPage')()"
+
+      - name: Run Daily Video Upload Task
+        run: node -e "require('./cron/uploadVideo')()"
+
+      - name: Upload Execution Logs & Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cron-execution-logs-${{ github.run_number }}
+          path: |
+            logs/
+            output/
+          retention-days: 14
+
+      - name: Commit and Push Updated State & Tokens
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chrono: Auto-update page states and token metadata [skip ci]"
+          file_pattern: "state.json videoState.json tokenData.json .env logs/"

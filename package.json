@@ -4,16 +4,22 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test tests/**/*.test.js",
+    "start": "node index.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "axios": "^1.11.0",
+    "dotenv": "^17.2.1",
+    "form-data": "^4.0.4",
     "fs": "^0.0.1-security",
     "node-cron": "^4.2.1",
     "path": "^0.12.7",
     "pdf-poppler": "^0.2.1",
-    "sharp": "^0.34.3"
+    "pdf2pic": "^3.2.0",
+    "playwright": "^1.62.1",
+    "sharp": "^0.34.3",
+    "twitter-api-v2": "^1.29.1"
   }
 }
