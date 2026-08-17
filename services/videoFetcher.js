@@ -37,11 +37,12 @@ function loadCloudinaryVideos() {
  */
 function getVideoUrl(pageNo) {
   const videos = loadCloudinaryVideos();
+  const rawKey = String(pageNo);
   const paddedPage = String(pageNo).padStart(3, '0');
-  const videoObj = videos[paddedPage];
+  const videoObj = videos[rawKey] || videos[paddedPage] || videos[Number(pageNo)];
 
   if (!videoObj || !videoObj.download_url) {
-    throw new Error(`Cloudinary video URL for video page ${pageNo} ("${paddedPage}") not found in cloudinary_videos.json`);
+    throw new Error(`Cloudinary video URL for video page ${pageNo} not found in cloudinary_videos.json`);
   }
 
   return videoObj.download_url;
@@ -55,8 +56,9 @@ function getVideoUrl(pageNo) {
  */
 function getVideoData(pageNo) {
   const videos = loadCloudinaryVideos();
+  const rawKey = String(pageNo);
   const paddedPage = String(pageNo).padStart(3, '0');
-  return videos[paddedPage] || null;
+  return videos[rawKey] || videos[paddedPage] || videos[Number(pageNo)] || null;
 }
 
 module.exports = {

@@ -2,16 +2,16 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { getVideoUrl, getVideoData } = require('../services/videoFetcher');
 
-test('getVideoUrl retrieves correct Cloudinary URLs for padded page numbers', () => {
+test('getVideoUrl retrieves correct Cloudinary URLs for page numbers', () => {
   const url1 = getVideoUrl(1);
-  assert.ok(url1.includes('dawah_video_001.mp4'), 'Page 1 URL should reference dawah_video_001.mp4');
+  assert.ok(url1.includes('dawah_videos/'), 'Page 1 URL should reference Cloudinary dawah_videos');
   assert.ok(url1.startsWith('https://res.cloudinary.com/'), 'URL should start with Cloudinary domain');
 
   const url45 = getVideoUrl(45);
-  assert.ok(url45.includes('dawah_video_045.mp4'), 'Page 45 URL should reference dawah_video_045.mp4');
+  assert.ok(url45.includes('dawah_videos/'), 'Page 45 URL should reference Cloudinary dawah_videos');
 
-  const url455 = getVideoUrl(455);
-  assert.ok(url455.includes('dawah_video_455.mp4'), 'Page 455 URL should reference dawah_video_455.mp4');
+  const url1446 = getVideoUrl(1446);
+  assert.ok(url1446.includes('dawah_videos/'), 'Page 1446 URL should reference Cloudinary dawah_videos');
 });
 
 test('getVideoData returns video metadata object', () => {

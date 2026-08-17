@@ -15,10 +15,10 @@ test('videoStateManager handles reading, updating, and advancing video page stat
   try {
     const initialState = getVideoState();
     assert.ok(typeof initialState.currentVideoPage === 'number');
-    assert.strictEqual(initialState.maxPage, 455);
+    assert.strictEqual(initialState.maxPage, 1446);
 
     // Save temporary state
-    saveVideoState({ currentVideoPage: 5, lastUpload: '2026-08-11T00:00:00.000Z', maxPage: 455 });
+    saveVideoState({ currentVideoPage: 5, lastUpload: '2026-08-11T00:00:00.000Z', maxPage: 1446 });
     const updatedState = getVideoState();
     assert.strictEqual(updatedState.currentVideoPage, 5);
 
@@ -28,7 +28,7 @@ test('videoStateManager handles reading, updating, and advancing video page stat
     assert.ok(nextState.lastUpload !== null);
 
     // Test video page rollover at maxPage
-    saveVideoState({ currentVideoPage: 455, lastUpload: null, maxPage: 455 });
+    saveVideoState({ currentVideoPage: 1446, lastUpload: null, maxPage: 1446 });
     const rolloverState = advanceVideoPage();
     assert.strictEqual(rolloverState.currentVideoPage, 1);
   } finally {

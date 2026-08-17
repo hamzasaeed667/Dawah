@@ -7,7 +7,7 @@ const videoStateFilePath = path.resolve(__dirname, '../videoState.json');
 const defaultVideoState = {
   currentVideoPage: 1,
   lastUpload: null,
-  maxPage: 455
+  maxPage: 1446
 };
 
 function getVideoState() {
