@@ -24,13 +24,13 @@ async function uploadImageToTikTok(imageUrl, caption = '') {
   const payload = {
     post_info: {
       title: caption.substring(0, 2200),
-      privacy_level: 'PUBLIC_TO_EVERYONE',
+      privacy_level: 'SELF_ONLY',
       disable_comment: false,
       auto_add_music: true
     },
     source_info: {
       source: 'PULL_FROM_URL',
-      photo_cover_index: 1,
+      photo_cover_index: 0,
       photo_images: [
         imageUrl
       ]

@@ -12,10 +12,10 @@ test('stateManager handles reading, updating, and advancing page state', () => {
   try {
     const initialState = getState();
     assert.ok(typeof initialState.currentPage === 'number');
-    assert.strictEqual(initialState.maxPage, 455);
+    assert.strictEqual(initialState.maxPage, 1446);
 
     // Save temporary state
-    saveState({ currentPage: 10, lastUpload: '2026-08-11T00:00:00.000Z', maxPage: 455 });
+    saveState({ currentPage: 10, lastUpload: '2026-08-11T00:00:00.000Z', maxPage: 1446 });
     const updatedState = getState();
     assert.strictEqual(updatedState.currentPage, 10);
 
@@ -25,7 +25,7 @@ test('stateManager handles reading, updating, and advancing page state', () => {
     assert.ok(nextState.lastUpload !== null);
 
     // Test page rollover at maxPage
-    saveState({ currentPage: 455, lastUpload: null, maxPage: 455 });
+    saveState({ currentPage: 1446, lastUpload: null, maxPage: 1446 });
     const rolloverState = advancePage();
     assert.strictEqual(rolloverState.currentPage, 1);
   } finally {

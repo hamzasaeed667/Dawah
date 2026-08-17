@@ -17,4 +17,9 @@ test('getImageUrl formats 3-digit padded page numbers correctly', () => {
     getImageUrl(455),
     'https://raw.githubusercontent.com/hamzasaeed667/DawahImages/main/images/455.jpg'
   );
+
+  assert.strictEqual(
+    getImageUrl(1446),
+    'https://raw.githubusercontent.com/hamzasaeed667/DawahImages/main/images/1446.jpg'
+  );
 });

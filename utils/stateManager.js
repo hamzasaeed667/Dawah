@@ -7,7 +7,7 @@ const stateFilePath = path.resolve(__dirname, '../state.json');
 const defaultState = {
   currentPage: 1,
   lastUpload: null,
-  maxPage: 455
+  maxPage: 1446
 };
 
 function getState() {

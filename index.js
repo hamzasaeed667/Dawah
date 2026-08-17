@@ -38,6 +38,3 @@ cron.schedule('0 3 * * *', async () => {
 logger.info('📌 Image upload cron scheduled: Runs daily at 00:00 (0 0 * * *).');
 logger.info('📌 Video upload cron scheduled: Runs daily at 00:00 (0 0 * * *).');
 logger.info('📌 Token refresh cron scheduled: Runs daily at 03:00 AM (0 3 * * *).');
-
-uploadCronTask().then().catch();
-uploadVideoCronTask().then().catch()
