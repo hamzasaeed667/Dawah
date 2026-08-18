@@ -12,7 +12,10 @@
     "pm2:restart": "pm2 restart ecosystem.config.js",
     "pm2:reload": "pm2 reload ecosystem.config.js",
     "pm2:logs": "pm2 logs dawah-automation",
-    "pm2:status": "pm2 status"
+    "pm2:status": "pm2 status",
+    "daemon:start": "mkdir -p logs && cp scripts/com.hamzasaeed.dawah.plist ~/Library/LaunchAgents/ && launchctl load -w ~/Library/LaunchAgents/com.hamzasaeed.dawah.plist",
+    "daemon:stop": "launchctl unload ~/Library/LaunchAgents/com.hamzasaeed.dawah.plist 2>/dev/null || true; rm -f ~/Library/LaunchAgents/com.hamzasaeed.dawah.plist",
+    "daemon:status": "launchctl list | grep com.hamzasaeed.dawah || echo 'Daemon not running'"
   },
   "author": "",
   "license": "ISC",

@@ -1,3 +1,4 @@
+const http = require('http');
 const cron = require('node-cron');
 const uploadCronTask = require('./cron/uploadPage');
 const uploadVideoCronTask = require('./cron/uploadVideo');
@@ -38,3 +39,51 @@ cron.schedule('0 3 * * *', async () => {
 logger.info('📌 Image upload cron scheduled: Runs daily at 00:00 (0 0 * * *).');
 logger.info('📌 Video upload cron scheduled: Runs daily at 00:00 (0 0 * * *).');
 logger.info('📌 Token refresh cron scheduled: Runs daily at 03:00 AM (0 3 * * *).');
+
+// Lightweight HTTP server for Cloud Hosting Health Checks & Manual Triggers
+const PORT = process.env.PORT || 3000;
+const server = http.createServer(async (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+
+  if (req.url === '/' || req.url === '/health') {
+    const currentState = getState();
+    const currentVideoState = getVideoState();
+    res.writeHead(200);
+    return res.end(JSON.stringify({
+      status: 'online',
+      message: 'Dawah Social Media Automation Server Active',
+      imageState: currentState,
+      videoState: currentVideoState,
+      timestamp: new Date().toISOString()
+    }, null, 2));
+  }
+
+  if (req.url === '/api/trigger-image' && req.method === 'POST') {
+    logger.info('🚀 Manual image upload triggered via HTTP API');
+    uploadCronTask().catch(e => logger.error('HTTP trigger error:', e.message));
+    res.writeHead(202);
+    return res.end(JSON.stringify({ message: 'Image upload job initiated' }));
+  }
+
+  if (req.url === '/api/trigger-video' && req.method === 'POST') {
+    logger.info('🎥 Manual video upload triggered via HTTP API');
+    uploadVideoCronTask().catch(e => logger.error('HTTP trigger error:', e.message));
+    res.writeHead(202);
+    return res.end(JSON.stringify({ message: 'Video upload job initiated' }));
+  }
+
+  if (req.url === '/api/trigger-refresh' && req.method === 'POST') {
+    logger.info('🔄 Manual token refresh triggered via HTTP API');
+    refreshAllTokens().catch(e => logger.error('HTTP trigger error:', e.message));
+    res.writeHead(202);
+    return res.end(JSON.stringify({ message: 'Token refresh initiated' }));
+  }
+
+  res.writeHead(404);
+  res.end(JSON.stringify({ error: 'Endpoint not found' }));
+});
+
+server.listen(PORT, () => {
+  logger.info(`🌐 HTTP Health & API Server listening on port ${PORT}`);
+});
+
