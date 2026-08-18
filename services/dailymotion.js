@@ -5,7 +5,7 @@ const FormData = require('form-data');
 const logger = require('../utils/logger');
 require('dotenv').config();
 
-const VIDEOS_DIR = '/Users/mac/Desktop/Hamza/Projects/DawahImages/videos';
+const VIDEOS_DIR = process.env.VIDEOS_DIR || '/Users/mac/Desktop/Hamza/Projects/DawahImages/videos';
 
 /**
  * Gets local video file path for a given page number.
