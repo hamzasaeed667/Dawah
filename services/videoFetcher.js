@@ -2,7 +2,8 @@ const path = require('path');
 const fs = require('fs');
 const logger = require('../utils/logger');
 
-const CLOUDINARY_VIDEOS_PATH = path.join(__dirname, '../cloudinary_videos.json');
+const CLOUDINARY_VIDEOS_PATH = process.env.CLOUDINARY_VIDEOS_PATH || path.join(__dirname, '../cloudinary_videos.json');
+const EXTERNAL_FALLBACK_PATH = '/Users/mac/Desktop/Hamza/Projects/DawahImages/cloudinary_videos.json';
 
 let cloudinaryVideosData = null;
 
@@ -12,16 +13,20 @@ let cloudinaryVideosData = null;
  */
 function loadCloudinaryVideos() {
   if (!cloudinaryVideosData) {
-    if (fs.existsSync(CLOUDINARY_VIDEOS_PATH)) {
+    const targetPath = fs.existsSync(CLOUDINARY_VIDEOS_PATH)
+      ? CLOUDINARY_VIDEOS_PATH
+      : (fs.existsSync(EXTERNAL_FALLBACK_PATH) ? EXTERNAL_FALLBACK_PATH : null);
+
+    if (targetPath) {
       try {
-        const rawData = fs.readFileSync(CLOUDINARY_VIDEOS_PATH, 'utf8');
+        const rawData = fs.readFileSync(targetPath, 'utf8');
         cloudinaryVideosData = JSON.parse(rawData);
       } catch (err) {
-        logger.error(`Error parsing ${CLOUDINARY_VIDEOS_PATH}:`, err.message);
+        logger.error(`Error parsing ${targetPath}:`, err.message);
         cloudinaryVideosData = {};
       }
     } else {
-      logger.error(`cloudinary_videos.json file not found at ${CLOUDINARY_VIDEOS_PATH}`);
+      logger.error(`cloudinary_videos.json file not found at ${CLOUDINARY_VIDEOS_PATH} or ${EXTERNAL_FALLBACK_PATH}`);
       cloudinaryVideosData = {};
     }
   }
@@ -61,7 +66,19 @@ function getVideoData(pageNo) {
   return videos[rawKey] || videos[paddedPage] || videos[Number(pageNo)] || null;
 }
 
+/**
+ * Returns the total number of videos configured in cloudinary_videos.json.
+ *
+ * @returns {number}
+ */
+function getTotalVideos() {
+  const videos = loadCloudinaryVideos();
+  return Object.keys(videos).length;
+}
+
 module.exports = {
   getVideoUrl,
-  getVideoData
+  getVideoData,
+  getTotalVideos,
+  loadCloudinaryVideos
 };

@@ -33,8 +33,11 @@ function saveState(state) {
 
 function advancePage() {
   const state = getState();
-  const nextPage = state.currentPage >= state.maxPage ? 1 : state.currentPage + 1;
+  const maxPage = Number(state.maxPage) || 1446;
+  const current = Number(state.currentPage) || 1;
+  const nextPage = (current >= maxPage || current < 1) ? 1 : current + 1;
   state.currentPage = nextPage;
+  state.maxPage = maxPage;
   state.lastUpload = new Date().toISOString();
   saveState(state);
   return state;

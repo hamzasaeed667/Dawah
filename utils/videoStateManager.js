@@ -33,8 +33,11 @@ function saveVideoState(state) {
 
 function advanceVideoPage() {
   const state = getVideoState();
-  const nextPage = state.currentVideoPage >= state.maxPage ? 1 : state.currentVideoPage + 1;
+  const maxPage = Number(state.maxPage) || 1446;
+  const current = Number(state.currentVideoPage) || 1;
+  const nextPage = (current >= maxPage || current < 1) ? 1 : current + 1;
   state.currentVideoPage = nextPage;
+  state.maxPage = maxPage;
   state.lastUpload = new Date().toISOString();
   saveVideoState(state);
   return state;
