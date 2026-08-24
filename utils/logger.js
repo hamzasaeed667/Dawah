@@ -1,10 +1,19 @@
 const fs = require('fs');
 const path = require('path');
 
-const logsDir = path.resolve(__dirname, '../logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
+const isServerless = !!(process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT || process.env.VERCEL);
+const logsDir = isServerless ? path.join('/tmp', 'logs') : path.resolve(__dirname, '../logs');
+let fileLoggingAvailable = false;
+
+try {
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+  }
+  fileLoggingAvailable = true;
+} catch (e) {
+  fileLoggingAvailable = false;
 }
+
 const logFilePath = path.join(logsDir, 'app.log');
 
 function formatTime() {
@@ -12,13 +21,15 @@ function formatTime() {
 }
 
 function writeToFile(level, message) {
+  if (!fileLoggingAvailable) return;
   try {
     const formattedMsg = `[${formatTime()}] [${level}] ${message}\n`;
     fs.appendFileSync(logFilePath, formattedMsg, 'utf-8');
   } catch (err) {
-    // Ignore log file write errors
+    // Ignore log file write errors in read-only / restricted environments
   }
 }
+
 
 const logger = {
   info: (...args) => {

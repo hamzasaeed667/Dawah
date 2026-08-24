@@ -5,7 +5,8 @@ const axios = require('axios');
 const { updateEnv, updateEnvMultiple } = require('../utils/envUtils');
 const logger = require('../utils/logger');
 
-const LOCK_FILE = path.resolve(__dirname, '../.threads_refresh.lock');
+const isServerless = !!(process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT || process.env.VERCEL);
+const LOCK_FILE = isServerless ? path.join('/tmp', '.threads_refresh.lock') : path.resolve(__dirname, '../.threads_refresh.lock');
 const LOCK_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 function acquireLock() {
@@ -34,7 +35,8 @@ function releaseLock() {
   }
 }
 
-const FB_LOCK_FILE = path.resolve(__dirname, '../.fb_refresh.lock');
+const FB_LOCK_FILE = isServerless ? path.join('/tmp', '.fb_refresh.lock') : path.resolve(__dirname, '../.fb_refresh.lock');
+
 
 function acquireFbLock() {
   try {
