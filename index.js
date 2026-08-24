@@ -49,21 +49,42 @@ const server = http.createServer(async (req, res) => {
   const pathname = parsedUrl.pathname;
   const method = req.method;
 
-  // Health check endpoint (Public, for uptime monitoring / ping)
-  if (pathname === '/' || pathname === '/health') {
+  // Server Status & Health check endpoint (Public)
+  if ((pathname === '/' || pathname === '/health' || pathname === '/status') && method === 'GET') {
     const currentState = getState();
     const currentVideoState = getVideoState();
+    const platforms = require('./config/platforms');
+    const enabledPlatforms = Object.keys(platforms).filter(p => platforms[p]);
+
     res.writeHead(200);
     return res.end(JSON.stringify({
       status: 'online',
-      message: 'Dawah Social Media Automation Server Active',
-      imageState: currentState,
-      videoState: currentVideoState,
-      timestamp: new Date().toISOString(),
-      endpoints: {
-        upload: '/api/trigger-uploads (Uploads Daily Image & Video)',
-        refreshTokens: '/api/refresh-tokens (Refreshes OAuth Tokens)'
-      }
+      server: 'Dawah Social Media Automation Server',
+      uptime_seconds: Math.floor(process.uptime()),
+      system: {
+        node_version: process.version,
+        environment: process.env.NODE_ENV || 'production',
+        port: PORT
+      },
+      content_progress: {
+        images: {
+          current_page: currentState.currentPage,
+          total_pages: currentState.maxPage,
+          last_upload: currentState.lastUpload || 'Never'
+        },
+        videos: {
+          current_video_page: currentVideoState.currentVideoPage,
+          total_pages: currentVideoState.maxPage,
+          last_upload: currentVideoState.lastUpload || 'Never'
+        }
+      },
+      active_platforms: enabledPlatforms,
+      available_apis: {
+        status: 'GET /',
+        upload_all: 'GET/POST /api/trigger-uploads?secret=<CRON_SECRET>',
+        refresh_tokens: 'GET/POST /api/refresh-tokens?secret=<CRON_SECRET>'
+      },
+      server_time: new Date().toISOString()
     }, null, 2));
   }
 
