@@ -45,7 +45,12 @@ const PORT = process.env.PORT || 3000;
 const server = http.createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
 
-  if (req.url === '/' || req.url === '/health') {
+  const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const pathname = parsedUrl.pathname;
+  const method = req.method;
+
+  // Health check endpoint (Public, for uptime monitoring / ping)
+  if (pathname === '/' || pathname === '/health') {
     const currentState = getState();
     const currentVideoState = getVideoState();
     res.writeHead(200);
@@ -54,29 +59,62 @@ const server = http.createServer(async (req, res) => {
       message: 'Dawah Social Media Automation Server Active',
       imageState: currentState,
       videoState: currentVideoState,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      endpoints: {
+        upload: '/api/trigger-uploads (Uploads Daily Image & Video)',
+        refreshTokens: '/api/refresh-tokens (Refreshes OAuth Tokens)'
+      }
     }, null, 2));
   }
 
-  if (req.url === '/api/trigger-image' && req.method === 'POST') {
-    logger.info('🚀 Manual image upload triggered via HTTP API');
-    uploadCronTask().catch(e => logger.error('HTTP trigger error:', e.message));
-    res.writeHead(202);
-    return res.end(JSON.stringify({ message: 'Image upload job initiated' }));
+  // --- Strict Security Verification for API Endpoints ---
+  const requiredSecret = process.env.CRON_SECRET || 'dawah-cron-secret-2026';
+  const providedSecret = parsedUrl.searchParams.get('secret') || 
+                         req.headers['x-cron-secret'] || 
+                         req.headers['authorization']?.replace(/^Bearer\s+/i, '');
+
+  if (!providedSecret || providedSecret !== requiredSecret) {
+    logger.warn(`🔒 Unauthorized API access attempt from ${req.socket.remoteAddress} on ${pathname}`);
+    res.writeHead(401);
+    return res.end(JSON.stringify({ error: 'Unauthorized: Invalid or missing cron secret' }));
   }
 
-  if (req.url === '/api/trigger-video' && req.method === 'POST') {
-    logger.info('🎥 Manual video upload triggered via HTTP API');
-    uploadVideoCronTask().catch(e => logger.error('HTTP trigger error:', e.message));
-    res.writeHead(202);
-    return res.end(JSON.stringify({ message: 'Video upload job initiated' }));
+  // ==========================================
+  // 1. UPLOADS API (Daily Image + Daily Video)
+  // ==========================================
+  if (pathname === '/api/trigger-uploads' && (method === 'GET' || method === 'POST')) {
+    logger.info(`🚀 Daily Image + Video upload job triggered via HTTP ${method}`);
+    (async () => {
+      try {
+        await uploadCronTask();
+        await uploadVideoCronTask();
+        logger.info('🎉 Both Image and Video uploads completed successfully.');
+      } catch (err) {
+        logger.error('❌ Error executing upload batch:', err.message);
+      }
+    })();
+
+    res.writeHead(200);
+    return res.end(JSON.stringify({
+      success: true,
+      message: 'Image and Video upload jobs initiated successfully'
+    }));
   }
 
-  if (req.url === '/api/trigger-refresh' && req.method === 'POST') {
-    logger.info('🔄 Manual token refresh triggered via HTTP API');
-    refreshAllTokens().catch(e => logger.error('HTTP trigger error:', e.message));
-    res.writeHead(202);
-    return res.end(JSON.stringify({ message: 'Token refresh initiated' }));
+  // ==========================================
+  // 2. REFRESH TOKENS API (OAuth Maintenance)
+  // ==========================================
+  if (pathname === '/api/refresh-tokens' && (method === 'GET' || method === 'POST')) {
+    logger.info(`🔄 Token refresh job triggered via HTTP ${method}`);
+    refreshAllTokens()
+      .then(() => logger.info('✅ Token refresh routine completed.'))
+      .catch(e => logger.error('❌ Token refresh HTTP trigger error:', e.message));
+
+    res.writeHead(200);
+    return res.end(JSON.stringify({
+      success: true,
+      message: 'Token refresh routine initiated successfully'
+    }));
   }
 
   res.writeHead(404);
