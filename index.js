@@ -40,109 +40,12 @@ logger.info('📌 Image upload cron scheduled: Runs daily at 00:00 (0 0 * * *).'
 logger.info('📌 Video upload cron scheduled: Runs daily at 00:00 (0 0 * * *).');
 logger.info('📌 Token refresh cron scheduled: Runs daily at 03:00 AM (0 3 * * *).');
 
-// Lightweight HTTP server for Cloud Hosting Health Checks & Manual Triggers
+// Start Express HTTP server
 const PORT = process.env.PORT || 3000;
-const server = http.createServer(async (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
+const app = require('./app');
 
-  const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  const pathname = parsedUrl.pathname;
-  const method = req.method;
-
-  // Server Status & Health check endpoint (Public)
-  if ((pathname === '/' || pathname === '/health' || pathname === '/status') && method === 'GET') {
-    const currentState = getState();
-    const currentVideoState = getVideoState();
-    const platforms = require('./config/platforms');
-    const enabledPlatforms = Object.keys(platforms).filter(p => platforms[p]);
-
-    res.writeHead(200);
-    return res.end(JSON.stringify({
-      status: 'online',
-      server: 'Dawah Social Media Automation Server',
-      uptime_seconds: Math.floor(process.uptime()),
-      system: {
-        node_version: process.version,
-        environment: process.env.NODE_ENV || 'production',
-        port: PORT
-      },
-      content_progress: {
-        images: {
-          current_page: currentState.currentPage,
-          total_pages: currentState.maxPage,
-          last_upload: currentState.lastUpload || 'Never'
-        },
-        videos: {
-          current_video_page: currentVideoState.currentVideoPage,
-          total_pages: currentVideoState.maxPage,
-          last_upload: currentVideoState.lastUpload || 'Never'
-        }
-      },
-      active_platforms: enabledPlatforms,
-      available_apis: {
-        status: 'GET /',
-        upload_all: 'GET/POST /api/trigger-uploads?secret=<CRON_SECRET>',
-        refresh_tokens: 'GET/POST /api/refresh-tokens?secret=<CRON_SECRET>'
-      },
-      server_time: new Date().toISOString()
-    }, null, 2));
-  }
-
-  // --- Strict Security Verification for API Endpoints ---
-  const requiredSecret = process.env.CRON_SECRET || 'dawah-cron-secret-2026';
-  const providedSecret = parsedUrl.searchParams.get('secret') || 
-                         req.headers['x-cron-secret'] || 
-                         req.headers['authorization']?.replace(/^Bearer\s+/i, '');
-
-  if (!providedSecret || providedSecret !== requiredSecret) {
-    logger.warn(`🔒 Unauthorized API access attempt from ${req.socket.remoteAddress} on ${pathname}`);
-    res.writeHead(401);
-    return res.end(JSON.stringify({ error: 'Unauthorized: Invalid or missing cron secret' }));
-  }
-
-  // ==========================================
-  // 1. UPLOADS API (Daily Image + Daily Video)
-  // ==========================================
-  if (pathname === '/api/trigger-uploads' && (method === 'GET' || method === 'POST')) {
-    logger.info(`🚀 Daily Image + Video upload job triggered via HTTP ${method}`);
-    (async () => {
-      try {
-        await uploadCronTask();
-        await uploadVideoCronTask();
-        logger.info('🎉 Both Image and Video uploads completed successfully.');
-      } catch (err) {
-        logger.error('❌ Error executing upload batch:', err.message);
-      }
-    })();
-
-    res.writeHead(200);
-    return res.end(JSON.stringify({
-      success: true,
-      message: 'Image and Video upload jobs initiated successfully'
-    }));
-  }
-
-  // ==========================================
-  // 2. REFRESH TOKENS API (OAuth Maintenance)
-  // ==========================================
-  if (pathname === '/api/refresh-tokens' && (method === 'GET' || method === 'POST')) {
-    logger.info(`🔄 Token refresh job triggered via HTTP ${method}`);
-    refreshAllTokens()
-      .then(() => logger.info('✅ Token refresh routine completed.'))
-      .catch(e => logger.error('❌ Token refresh HTTP trigger error:', e.message));
-
-    res.writeHead(200);
-    return res.end(JSON.stringify({
-      success: true,
-      message: 'Token refresh routine initiated successfully'
-    }));
-  }
-
-  res.writeHead(404);
-  res.end(JSON.stringify({ error: 'Endpoint not found' }));
-});
-
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   logger.info(`🌐 HTTP Health & API Server listening on port ${PORT}`);
 });
+
 
