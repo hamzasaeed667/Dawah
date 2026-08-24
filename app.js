@@ -74,18 +74,28 @@ function requireSecretAuth(req, res, next) {
 router.all('/trigger-uploads', requireSecretAuth, async (req, res) => {
   logger.info(`🚀 Daily Image + Video upload job triggered via HTTP ${req.method}`);
   
-  // Respond immediately so cron-job.org / caller does not timeout
-  res.status(200).json({
-    success: true,
-    message: 'Image and Video upload jobs initiated successfully'
-  });
-
   try {
-    await uploadCronTask();
-    await uploadVideoCronTask();
-    logger.info('🎉 Both Image and Video uploads completed successfully.');
+    const imageUploadResult = await uploadCronTask();
+    let videoUploadResult = null;
+    try {
+      videoUploadResult = await uploadVideoCronTask();
+    } catch (vErr) {
+      logger.error('Video upload error:', vErr.message);
+      videoUploadResult = { error: vErr.message };
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Uploads executed successfully',
+      imageUpload: imageUploadResult,
+      videoUpload: videoUploadResult
+    });
   } catch (err) {
     logger.error('❌ Error executing upload batch:', err.message);
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
   }
 });
 
@@ -93,16 +103,19 @@ router.all('/trigger-uploads', requireSecretAuth, async (req, res) => {
 router.all('/refresh-tokens', requireSecretAuth, async (req, res) => {
   logger.info(`🔄 Token refresh job triggered via HTTP ${req.method}`);
 
-  res.status(200).json({
-    success: true,
-    message: 'Token refresh routine initiated successfully'
-  });
-
   try {
     await refreshAllTokens();
     logger.info('✅ Token refresh routine completed.');
+    return res.status(200).json({
+      success: true,
+      message: 'Token refresh routine completed successfully'
+    });
   } catch (e) {
     logger.error('❌ Token refresh HTTP trigger error:', e.message);
+    return res.status(500).json({
+      success: false,
+      error: e.message
+    });
   }
 });
 
@@ -112,3 +125,4 @@ app.use('/api', router);
 app.use('/', router);
 
 module.exports = app;
+

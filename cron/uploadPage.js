@@ -145,19 +145,24 @@ async function uploadCronTask() {
   let successCount = 0;
   let failCount = 0;
 
+  const detailedResults = {};
   results.forEach((res, idx) => {
     const platform = platformNames[idx];
     if (res.status === 'fulfilled') {
       successCount++;
+      detailedResults[platform] = { status: 'success' };
       logger.info(`  ✅ ${platform}: Success`);
     } else {
       failCount++;
-      logger.error(`  ❌ ${platform}: Failed - ${res.reason?.message || res.reason}`);
+      const errMsg = res.reason?.message || String(res.reason);
+      detailedResults[platform] = { status: 'failed', error: errMsg };
+      logger.error(`  ❌ ${platform}: Failed - ${errMsg}`);
     }
   });
 
+  let newState = state;
   if (successCount > 0) {
-    const newState = advancePage();
+    newState = advancePage();
     logger.info(`🎉 Upload task complete! (${successCount} succeeded, ${failCount} failed).`);
     logger.info(`⏩ Page advanced to ${newState.currentPage}`);
   } else {
@@ -165,6 +170,7 @@ async function uploadCronTask() {
   }
 
   logger.info(`--------------------------------------------------`);
+  return { successCount, failCount, pageNo, nextPage: newState.currentPage, results: detailedResults };
 }
 
 module.exports = uploadCronTask;
