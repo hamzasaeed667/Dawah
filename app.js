@@ -11,6 +11,11 @@ const logger = require('./utils/logger');
 const app = express();
 const router = express.Router();
 
+const pkg = require('./package.json');
+const APP_VERSION = pkg.version || '1.0.0';
+const COMMIT_HASH = process.env.COMMIT_REF || process.env.DEPLOY_ID || process.env.GITHUB_SHA || 'local';
+const DEPLOY_ENV = process.env.NETLIFY ? 'netlify-serverless' : (process.env.NODE_ENV || 'production');
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -23,6 +28,9 @@ router.get('/', (req, res) => {
   return res.json({
     status: 'online',
     server: 'Dawah Social Media Automation Server (Express / Netlify)',
+    version: APP_VERSION,
+    commit: COMMIT_HASH ? COMMIT_HASH.substring(0, 7) : 'unknown',
+    environment: DEPLOY_ENV,
     uptime_seconds: Math.floor(process.uptime()),
     content_progress: {
       images: {
@@ -38,7 +46,8 @@ router.get('/', (req, res) => {
     },
     active_platforms: enabledPlatforms,
     apis: {
-      status: 'GET /',
+      status: 'GET /status or GET /api',
+      health: 'GET /health',
       uploads: 'GET/POST /api/trigger-uploads?secret=<CRON_SECRET>',
       refresh_tokens: 'GET/POST /api/refresh-tokens?secret=<CRON_SECRET>'
     },
@@ -51,8 +60,12 @@ router.get('/health', (req, res) => {
   const currentVideoState = getVideoState();
   return res.json({
     status: 'online',
+    version: APP_VERSION,
+    commit: COMMIT_HASH ? COMMIT_HASH.substring(0, 7) : 'unknown',
+    environment: DEPLOY_ENV,
     images: currentState,
-    videos: currentVideoState
+    videos: currentVideoState,
+    server_time: new Date().toISOString()
   });
 });
 
