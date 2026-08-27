@@ -140,3 +140,6 @@ tiktok_user_data/
 .DS_Store
 *.lock
 
+
+# Local Netlify folder
+.netlify
