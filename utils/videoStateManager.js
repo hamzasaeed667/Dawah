@@ -3,8 +3,10 @@ const path = require('path');
 const logger = require('./logger');
 
 const videoStateFilePath = path.resolve(__dirname, '../videoState.json');
+const stateFilePath = path.resolve(__dirname, '../state.json');
 const isServerless = !!(process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT || process.env.VERCEL);
 const tmpVideoStateFilePath = path.join('/tmp', 'videoState.json');
+const tmpStateFilePath = path.join('/tmp', 'state.json');
 
 const defaultVideoState = {
   currentVideoPage: 1,
@@ -21,6 +23,16 @@ function getVideoState() {
     if (fs.existsSync(videoStateFilePath)) {
       const data = fs.readFileSync(videoStateFilePath, 'utf-8');
       return JSON.parse(data);
+    }
+    if (fs.existsSync(stateFilePath)) {
+      const stateData = JSON.parse(fs.readFileSync(stateFilePath, 'utf-8'));
+      if (stateData.currentVideoPage) {
+        return {
+          currentVideoPage: stateData.currentVideoPage,
+          lastUpload: stateData.lastVideoUpload || stateData.lastUpload || null,
+          maxPage: stateData.maxPage || 1446
+        };
+      }
     }
   } catch (err) {
     logger.error('Failed to read videoState.json, using default state:', err.message);
@@ -46,6 +58,33 @@ function saveVideoState(state) {
     } catch (tmpErr) {
       logger.error('Failed to write to tmp video state file:', tmpErr.message);
     }
+  }
+
+  // Also sync currentVideoPage and lastVideoUpload into state.json
+  try {
+    let mainState = {};
+    if (fs.existsSync(stateFilePath)) {
+      mainState = JSON.parse(fs.readFileSync(stateFilePath, 'utf-8'));
+    }
+    mainState.currentVideoPage = state.currentVideoPage;
+    if (state.lastUpload) mainState.lastVideoUpload = state.lastUpload;
+    if (state.maxPage) mainState.maxPage = state.maxPage;
+    fs.writeFileSync(stateFilePath, JSON.stringify(mainState, null, 2), 'utf-8');
+  } catch (syncErr) {
+    // Ignore read-only errors on local disk
+  }
+
+  if (isServerless) {
+    try {
+      let tmpMainState = {};
+      if (fs.existsSync(tmpStateFilePath)) {
+        tmpMainState = JSON.parse(fs.readFileSync(tmpStateFilePath, 'utf-8'));
+      }
+      tmpMainState.currentVideoPage = state.currentVideoPage;
+      if (state.lastUpload) tmpMainState.lastVideoUpload = state.lastUpload;
+      if (state.maxPage) tmpMainState.maxPage = state.maxPage;
+      fs.writeFileSync(tmpStateFilePath, JSON.stringify(tmpMainState, null, 2), 'utf-8');
+    } catch (tmpSyncErr) {}
   }
 }
 

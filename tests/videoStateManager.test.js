@@ -12,6 +12,12 @@ test('videoStateManager handles reading, updating, and advancing video page stat
     originalData = fs.readFileSync(videoStateFilePath, 'utf-8');
   }
 
+  const stateFilePath = path.resolve(__dirname, '../state.json');
+  let originalStateData = null;
+  if (fs.existsSync(stateFilePath)) {
+    originalStateData = fs.readFileSync(stateFilePath, 'utf-8');
+  }
+
   try {
     const initialState = getVideoState();
     assert.ok(typeof initialState.currentVideoPage === 'number');
@@ -34,6 +40,9 @@ test('videoStateManager handles reading, updating, and advancing video page stat
   } finally {
     if (originalData) {
       fs.writeFileSync(videoStateFilePath, originalData, 'utf-8');
+    }
+    if (originalStateData) {
+      fs.writeFileSync(stateFilePath, originalStateData, 'utf-8');
     }
   }
 });

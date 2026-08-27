@@ -8,7 +8,9 @@ const tmpStateFilePath = path.join('/tmp', 'state.json');
 
 const defaultState = {
   currentPage: 1,
+  currentVideoPage: 1,
   lastUpload: null,
+  lastVideoUpload: null,
   maxPage: 1446
 };
 
@@ -28,11 +30,14 @@ function getState() {
   return { ...defaultState };
 }
 
-function saveState(state) {
+function saveState(newState) {
+  const currentState = getState();
+  const merged = { ...currentState, ...newState };
+
   let saved = false;
   try {
-    fs.writeFileSync(stateFilePath, JSON.stringify(state, null, 2), 'utf-8');
-    logger.info(`State updated on disk: currentPage=${state.currentPage}, lastUpload=${state.lastUpload}`);
+    fs.writeFileSync(stateFilePath, JSON.stringify(merged, null, 2), 'utf-8');
+    logger.info(`State updated on disk: currentPage=${merged.currentPage}, lastUpload=${merged.lastUpload}`);
     saved = true;
   } catch (err) {
     logger.warn(`Could not write to ${stateFilePath} (${err.message}). Trying serverless tmp path...`);
@@ -40,8 +45,8 @@ function saveState(state) {
 
   if (!saved || isServerless) {
     try {
-      fs.writeFileSync(tmpStateFilePath, JSON.stringify(state, null, 2), 'utf-8');
-      logger.info(`State updated in tmp disk: currentPage=${state.currentPage}`);
+      fs.writeFileSync(tmpStateFilePath, JSON.stringify(merged, null, 2), 'utf-8');
+      logger.info(`State updated in tmp disk: currentPage=${merged.currentPage}`);
       saved = true;
     } catch (tmpErr) {
       logger.error('Failed to write to tmp state file:', tmpErr.message);
