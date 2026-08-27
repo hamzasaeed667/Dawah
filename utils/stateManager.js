@@ -3,6 +3,8 @@ const path = require('path');
 const logger = require('./logger');
 
 const stateFilePath = path.resolve(__dirname, '../state.json');
+const isServerless = !!(process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT || process.env.VERCEL);
+const tmpStateFilePath = path.join('/tmp', 'state.json');
 
 const defaultState = {
   currentPage: 1,
@@ -12,6 +14,10 @@ const defaultState = {
 
 function getState() {
   try {
+    if (isServerless && fs.existsSync(tmpStateFilePath)) {
+      const tmpData = fs.readFileSync(tmpStateFilePath, 'utf-8');
+      return JSON.parse(tmpData);
+    }
     if (fs.existsSync(stateFilePath)) {
       const data = fs.readFileSync(stateFilePath, 'utf-8');
       return JSON.parse(data);
@@ -23,11 +29,23 @@ function getState() {
 }
 
 function saveState(state) {
+  let saved = false;
   try {
     fs.writeFileSync(stateFilePath, JSON.stringify(state, null, 2), 'utf-8');
-    logger.info(`State updated: currentPage=${state.currentPage}, lastUpload=${state.lastUpload}`);
+    logger.info(`State updated on disk: currentPage=${state.currentPage}, lastUpload=${state.lastUpload}`);
+    saved = true;
   } catch (err) {
-    logger.error('Failed to write state.json:', err.message);
+    logger.warn(`Could not write to ${stateFilePath} (${err.message}). Trying serverless tmp path...`);
+  }
+
+  if (!saved || isServerless) {
+    try {
+      fs.writeFileSync(tmpStateFilePath, JSON.stringify(state, null, 2), 'utf-8');
+      logger.info(`State updated in tmp disk: currentPage=${state.currentPage}`);
+      saved = true;
+    } catch (tmpErr) {
+      logger.error('Failed to write to tmp state file:', tmpErr.message);
+    }
   }
 }
 

@@ -104,19 +104,24 @@ async function uploadVideoCronTask() {
   let successCount = 0;
   let failCount = 0;
 
+  const detailedResults = {};
   results.forEach((res, idx) => {
     const platform = platformNames[idx];
     if (res.status === 'fulfilled') {
       successCount++;
+      detailedResults[platform] = { status: 'success' };
       logger.info(`  ✅ Video Upload [${platform}]: Success`);
     } else {
       failCount++;
-      logger.error(`  ❌ Video Upload [${platform}]: Failed - ${res.reason?.message || res.reason}`);
+      const errMsg = res.reason?.message || String(res.reason);
+      detailedResults[platform] = { status: 'failed', error: errMsg };
+      logger.error(`  ❌ Video Upload [${platform}]: Failed - ${errMsg}`);
     }
   });
 
+  let newState = state;
   if (successCount > 0) {
-    const newState = advanceVideoPage();
+    newState = advanceVideoPage();
     logger.info(`🎉 Video upload task complete! (${successCount} succeeded, ${failCount} failed).`);
     logger.info(`⏩ Video page advanced to ${newState.currentVideoPage}`);
   } else {
@@ -124,6 +129,7 @@ async function uploadVideoCronTask() {
   }
 
   logger.info(`--------------------------------------------------`);
+  return { successCount, failCount, videoPageNo, nextPage: newState.currentVideoPage, results: detailedResults };
 }
 
 module.exports = uploadVideoCronTask;
