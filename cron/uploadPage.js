@@ -50,7 +50,7 @@ function generateOptimizedCaption(pageNo, maxPage) {
 }
 
 async function uploadCronTask() {
-  const state = getState();
+  const state = await getState();
   const pageNo = state.currentPage;
   const imageUrl = getImageUrl(pageNo);
 
@@ -162,7 +162,7 @@ async function uploadCronTask() {
 
   let newState = state;
   if (successCount > 0) {
-    newState = advancePage();
+    newState = await advancePage();
     logger.info(`🎉 Upload task complete! (${successCount} succeeded, ${failCount} failed).`);
     logger.info(`⏩ Page advanced to ${newState.currentPage}`);
   } else {

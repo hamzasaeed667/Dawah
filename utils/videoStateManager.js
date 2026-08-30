@@ -1,10 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 const logger = require('./logger');
+const { isServerless, blobGet, blobSet } = require('./blobStore');
+
+const BLOB_STORE = 'dawah-state';
+const BLOB_KEY = 'video-state';
 
 const videoStateFilePath = path.resolve(__dirname, '../videoState.json');
 const stateFilePath = path.resolve(__dirname, '../state.json');
-const isServerless = !!(process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT || process.env.VERCEL);
 const tmpVideoStateFilePath = path.join('/tmp', 'videoState.json');
 const tmpStateFilePath = path.join('/tmp', 'state.json');
 
@@ -14,7 +17,10 @@ const defaultVideoState = {
   maxPage: 1446
 };
 
-function getVideoState() {
+/**
+ * Read video state from disk (local or /tmp fallback).
+ */
+function getVideoStateFromDisk() {
   try {
     if (isServerless && fs.existsSync(tmpVideoStateFilePath)) {
       const tmpData = fs.readFileSync(tmpVideoStateFilePath, 'utf-8');
@@ -35,26 +41,54 @@ function getVideoState() {
       }
     }
   } catch (err) {
-    logger.error('Failed to read videoState.json, using default state:', err.message);
+    logger.error('Failed to read videoState.json from disk, using default state:', err.message);
   }
   return { ...defaultVideoState };
 }
 
-function saveVideoState(state) {
+/**
+ * Get current video state. In serverless, reads from Netlify Blobs first (persistent),
+ * then falls back to disk. In local/CI, reads from disk only.
+ */
+async function getVideoState() {
+  if (isServerless) {
+    const blobState = await blobGet(BLOB_STORE, BLOB_KEY);
+    if (blobState) {
+      logger.info(`[VideoStateManager] Loaded state from Blobs: currentVideoPage=${blobState.currentVideoPage}`);
+      return blobState;
+    }
+    logger.info('[VideoStateManager] No Blob state found, falling back to disk.');
+  }
+  return getVideoStateFromDisk();
+}
+
+/**
+ * Save video state. In serverless, writes to Netlify Blobs (persistent) + /tmp (cache).
+ * In local/CI, writes to disk files.
+ */
+async function saveVideoState(state) {
+  // Always attempt Blob persistence in serverless
+  if (isServerless) {
+    await blobSet(BLOB_STORE, BLOB_KEY, state);
+  }
+
+  // Write to videoState.json on disk
   let saved = false;
   try {
     fs.writeFileSync(videoStateFilePath, JSON.stringify(state, null, 2), 'utf-8');
     logger.info(`Video state updated on disk: currentVideoPage=${state.currentVideoPage}, lastUpload=${state.lastUpload}`);
     saved = true;
   } catch (err) {
-    logger.warn(`Could not write to ${videoStateFilePath} (${err.message}). Trying serverless tmp path...`);
+    if (!isServerless) {
+      logger.warn(`Could not write to ${videoStateFilePath} (${err.message}).`);
+    }
   }
 
+  // Write to /tmp as cache in serverless
   if (!saved || isServerless) {
     try {
       fs.writeFileSync(tmpVideoStateFilePath, JSON.stringify(state, null, 2), 'utf-8');
       logger.info(`Video state updated in tmp disk: currentVideoPage=${state.currentVideoPage}`);
-      saved = true;
     } catch (tmpErr) {
       logger.error('Failed to write to tmp video state file:', tmpErr.message);
     }
@@ -88,15 +122,18 @@ function saveVideoState(state) {
   }
 }
 
-function advanceVideoPage() {
-  const state = getVideoState();
+/**
+ * Advance the video page counter and persist.
+ */
+async function advanceVideoPage() {
+  const state = await getVideoState();
   const maxPage = Number(state.maxPage) || 1446;
   const current = Number(state.currentVideoPage) || 1;
   const nextPage = (current >= maxPage || current < 1) ? 1 : current + 1;
   state.currentVideoPage = nextPage;
   state.maxPage = maxPage;
   state.lastUpload = new Date().toISOString();
-  saveVideoState(state);
+  await saveVideoState(state);
   return state;
 }
 

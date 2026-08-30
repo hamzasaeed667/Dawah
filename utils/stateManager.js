@@ -1,9 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const logger = require('./logger');
+const { isServerless, blobGet, blobSet } = require('./blobStore');
+
+const BLOB_STORE = 'dawah-state';
+const BLOB_KEY = 'image-state';
 
 const stateFilePath = path.resolve(__dirname, '../state.json');
-const isServerless = !!(process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT || process.env.VERCEL);
 const tmpStateFilePath = path.join('/tmp', 'state.json');
 
 const defaultState = {
@@ -14,7 +17,10 @@ const defaultState = {
   maxPage: 1446
 };
 
-function getState() {
+/**
+ * Read state from disk (local or /tmp fallback).
+ */
+function getStateFromDisk() {
   try {
     if (isServerless && fs.existsSync(tmpStateFilePath)) {
       const tmpData = fs.readFileSync(tmpStateFilePath, 'utf-8');
@@ -25,44 +31,75 @@ function getState() {
       return JSON.parse(data);
     }
   } catch (err) {
-    logger.error('Failed to read state.json, using default state:', err.message);
+    logger.error('Failed to read state.json from disk, using default state:', err.message);
   }
   return { ...defaultState };
 }
 
-function saveState(newState) {
-  const currentState = getState();
+/**
+ * Get current state. In serverless, reads from Netlify Blobs first (persistent),
+ * then falls back to disk. In local/CI, reads from disk only.
+ */
+async function getState() {
+  if (isServerless) {
+    const blobState = await blobGet(BLOB_STORE, BLOB_KEY);
+    if (blobState) {
+      logger.info(`[StateManager] Loaded state from Blobs: currentPage=${blobState.currentPage}`);
+      return blobState;
+    }
+    logger.info('[StateManager] No Blob state found, falling back to disk.');
+  }
+  return getStateFromDisk();
+}
+
+/**
+ * Save state. In serverless, writes to Netlify Blobs (persistent) + /tmp (cache).
+ * In local/CI, writes to disk state.json.
+ */
+async function saveState(newState) {
+  const currentState = await getState();
   const merged = { ...currentState, ...newState };
 
+  // Always attempt Blob persistence in serverless
+  if (isServerless) {
+    await blobSet(BLOB_STORE, BLOB_KEY, merged);
+  }
+
+  // Write to disk (will succeed locally, may fail in serverless — that's OK)
   let saved = false;
   try {
     fs.writeFileSync(stateFilePath, JSON.stringify(merged, null, 2), 'utf-8');
     logger.info(`State updated on disk: currentPage=${merged.currentPage}, lastUpload=${merged.lastUpload}`);
     saved = true;
   } catch (err) {
-    logger.warn(`Could not write to ${stateFilePath} (${err.message}). Trying serverless tmp path...`);
+    if (!isServerless) {
+      logger.warn(`Could not write to ${stateFilePath} (${err.message}).`);
+    }
   }
 
+  // Write to /tmp as cache in serverless
   if (!saved || isServerless) {
     try {
       fs.writeFileSync(tmpStateFilePath, JSON.stringify(merged, null, 2), 'utf-8');
       logger.info(`State updated in tmp disk: currentPage=${merged.currentPage}`);
-      saved = true;
     } catch (tmpErr) {
       logger.error('Failed to write to tmp state file:', tmpErr.message);
     }
   }
 }
 
-function advancePage() {
-  const state = getState();
+/**
+ * Advance the image page counter and persist.
+ */
+async function advancePage() {
+  const state = await getState();
   const maxPage = Number(state.maxPage) || 1446;
   const current = Number(state.currentPage) || 1;
   const nextPage = (current >= maxPage || current < 1) ? 1 : current + 1;
   state.currentPage = nextPage;
   state.maxPage = maxPage;
   state.lastUpload = new Date().toISOString();
-  saveState(state);
+  await saveState(state);
   return state;
 }
 

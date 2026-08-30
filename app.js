@@ -5,8 +5,13 @@ const uploadVideoCronTask = require('./cron/uploadVideo');
 const { refreshAllTokens } = require('./cron/refreshTokens');
 const { getState } = require('./utils/stateManager');
 const { getVideoState } = require('./utils/videoStateManager');
+const { loadTokensFromBlobs } = require('./utils/envUtils');
 const platforms = require('./config/platforms');
 const logger = require('./utils/logger');
+
+// Hydrate tokens from Netlify Blobs on cold start (serverless only, no-op locally)
+loadTokensFromBlobs().catch(err => logger.warn(`Token hydration skipped: ${err.message}`));
+
 
 const app = express();
 const router = express.Router();
@@ -20,9 +25,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // --- 1. Server Status & Health Check API (Public) ---
-router.get('/', (req, res) => {
-  const currentState = getState();
-  const currentVideoState = getVideoState();
+router.get('/', async (req, res) => {
+  const currentState = await getState();
+  const currentVideoState = await getVideoState();
   const enabledPlatforms = Object.keys(platforms).filter(p => platforms[p]);
 
   return res.json({
@@ -55,9 +60,9 @@ router.get('/', (req, res) => {
   });
 });
 
-router.get('/health', (req, res) => {
-  const currentState = getState();
-  const currentVideoState = getVideoState();
+router.get('/health', async (req, res) => {
+  const currentState = await getState();
+  const currentVideoState = await getVideoState();
   return res.json({
     status: 'online',
     version: APP_VERSION,

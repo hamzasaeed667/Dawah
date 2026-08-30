@@ -33,7 +33,7 @@ async function uploadTikTokWithFallback(videoUrl, title) {
 }
 
 async function uploadVideoCronTask() {
-  const state = getVideoState();
+  const state = await getVideoState();
   const videoPageNo = state.currentVideoPage;
   const videoPath = getVideoPath(videoPageNo);
 
@@ -121,7 +121,7 @@ async function uploadVideoCronTask() {
 
   let newState = state;
   if (successCount > 0) {
-    newState = advanceVideoPage();
+    newState = await advanceVideoPage();
     logger.info(`🎉 Video upload task complete! (${successCount} succeeded, ${failCount} failed).`);
     logger.info(`⏩ Video page advanced to ${newState.currentVideoPage}`);
   } else {
