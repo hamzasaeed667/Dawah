@@ -2,13 +2,21 @@
  * blobStore.js — Centralized Netlify Blobs helper for persistent state in serverless.
  *
  * Uses dynamic import() because @netlify/blobs is ESM-only and this project is CommonJS.
- * Gracefully returns null when not running in a Netlify environment (local / GitHub Actions),
- * so callers can fall back to disk I/O.
+ * 
+ * In Lambda compatibility mode (serverless-http), the NETLIFY_BLOBS_CONTEXT env var
+ * is NOT auto-injected, so we must provide explicit siteID + token to getStore().
+ * 
+ * Required env vars in Netlify Dashboard:
+ *   NETLIFY_API_TOKEN  — Personal access token from https://app.netlify.com/user/applications#personal-access-tokens
+ *   SITE_ID            — Auto-set by Netlify, but can be manually set if needed
+ *
+ * Gracefully returns null when credentials are missing or not in serverless,
+ * so callers fall back to disk I/O.
  */
 
 const logger = require('./logger');
 
-const isServerless = !!(process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT);
+const isServerless = !!(process.env.NETLIFY || process.env.LAMBDA_TASK_ROOT || process.env.AWS_LAMBDA_FUNCTION_NAME);
 
 // Cache the import so we only resolve once per cold start
 let _blobsModule = null;
@@ -35,15 +43,42 @@ async function getBlobsModule() {
 
 /**
  * Get a named Netlify Blobs store with strong consistency.
- * Returns the store object, or null if not in serverless / unavailable.
+ * 
+ * Tries auto-detection first (works in Netlify Functions v2).
+ * Falls back to explicit siteID + token for Lambda compat mode (serverless-http).
+ * 
+ * Returns the store object, or null if unavailable.
  */
 async function getStore(storeName) {
   const blobs = await getBlobsModule();
   if (!blobs) return null;
+
+  // Try 1: Auto-detection (works if NETLIFY_BLOBS_CONTEXT is injected)
   try {
     return blobs.getStore({ name: storeName, consistency: 'strong' });
+  } catch (autoErr) {
+    logger.info(`[BlobStore] Auto-detection failed (${autoErr.message}), trying explicit credentials...`);
+  }
+
+  // Try 2: Explicit credentials for Lambda compat mode
+  const siteID = process.env.SITE_ID || process.env.NETLIFY_SITE_ID;
+  const token = process.env.NETLIFY_API_TOKEN;
+
+  if (!siteID || !token) {
+    logger.warn(`[BlobStore] Cannot create store "${storeName}": missing SITE_ID or NETLIFY_API_TOKEN env vars. ` +
+      `Set NETLIFY_API_TOKEN in your Netlify Dashboard → Site configuration → Environment variables.`);
+    return null;
+  }
+
+  try {
+    return blobs.getStore({
+      name: storeName,
+      siteID,
+      token,
+      consistency: 'strong'
+    });
   } catch (err) {
-    logger.warn(`[BlobStore] Failed to get store "${storeName}": ${err.message}`);
+    logger.error(`[BlobStore] Failed to get store "${storeName}" with explicit credentials: ${err.message}`);
     return null;
   }
 }
