@@ -97,43 +97,39 @@ async function uploadVideoCronTask() {
     }
   }
 
-  if (uploads.length === 0) {
-    logger.warn('⚠️ No video platforms are currently enabled in config/platforms.js');
-    return;
-  }
-
-  logger.info(`📡 Uploading video concurrently to enabled platforms: ${platformNames.join(', ')}`);
-
-  const results = await Promise.allSettled(uploads);
-
   let successCount = 0;
   let failCount = 0;
-
   const detailedResults = {};
-  results.forEach((res, idx) => {
-    const platform = platformNames[idx];
-    if (res.status === 'fulfilled') {
-      successCount++;
-      detailedResults[platform] = { status: 'success' };
-      logger.info(`  ✅ Video Upload [${platform}]: Success`);
-    } else {
-      failCount++;
-      const errMsg = res.reason?.message || String(res.reason);
-      detailedResults[platform] = { status: 'failed', error: errMsg };
-      logger.error(`  ❌ Video Upload [${platform}]: Failed - ${errMsg}`);
-    }
-  });
-
   let newState = state;
-  if (successCount > 0) {
+
+  try {
+    if (uploads.length > 0) {
+      logger.info(`📡 Uploading video concurrently to enabled platforms: ${platformNames.join(', ')}`);
+
+      const results = await Promise.allSettled(uploads);
+
+      results.forEach((res, idx) => {
+        const platform = platformNames[idx];
+        if (res.status === 'fulfilled') {
+          successCount++;
+          detailedResults[platform] = { status: 'success' };
+          logger.info(`  ✅ Video Upload [${platform}]: Success`);
+        } else {
+          failCount++;
+          const errMsg = res.reason?.message || String(res.reason);
+          detailedResults[platform] = { status: 'failed', error: errMsg };
+          logger.error(`  ❌ Video Upload [${platform}]: Failed - ${errMsg}`);
+        }
+      });
+    } else {
+      logger.warn('⚠️ No video platforms are currently enabled in config/platforms.js');
+    }
+  } finally {
     newState = await advanceVideoPage();
-    logger.info(`🎉 Video upload task complete! (${successCount} succeeded, ${failCount} failed).`);
-    logger.info(`⏩ Video page advanced to ${newState.currentVideoPage}`);
-  } else {
-    logger.warn(`⚠️ All video platform uploads failed. Video page ${videoPageNo} will NOT be advanced.`);
+    logger.info(`⏩ Video page advanced to ${newState.currentVideoPage} (${successCount} succeeded, ${failCount} failed).`);
+    logger.info(`--------------------------------------------------`);
   }
 
-  logger.info(`--------------------------------------------------`);
   return { successCount, failCount, videoPageNo, nextPage: newState.currentVideoPage, results: detailedResults };
 }
 

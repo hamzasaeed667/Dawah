@@ -133,43 +133,39 @@ async function uploadCronTask() {
     uploads.push(retry(() => uploadImageToReddit(imageUrl, `Page ${pageNo} | "Purification of the Mind"`)));
   }
 
-  if (uploads.length === 0) {
-    logger.warn('⚠️ No social media platforms are currently enabled in config/platforms.js');
-    return;
-  }
-
-  logger.info(`📡 Uploading concurrently to enabled platforms: ${platformNames.join(', ')}`);
-
-  const results = await Promise.allSettled(uploads);
-
   let successCount = 0;
   let failCount = 0;
-
   const detailedResults = {};
-  results.forEach((res, idx) => {
-    const platform = platformNames[idx];
-    if (res.status === 'fulfilled') {
-      successCount++;
-      detailedResults[platform] = { status: 'success' };
-      logger.info(`  ✅ ${platform}: Success`);
-    } else {
-      failCount++;
-      const errMsg = res.reason?.message || String(res.reason);
-      detailedResults[platform] = { status: 'failed', error: errMsg };
-      logger.error(`  ❌ ${platform}: Failed - ${errMsg}`);
-    }
-  });
-
   let newState = state;
-  if (successCount > 0) {
+
+  try {
+    if (uploads.length > 0) {
+      logger.info(`📡 Uploading concurrently to enabled platforms: ${platformNames.join(', ')}`);
+
+      const results = await Promise.allSettled(uploads);
+
+      results.forEach((res, idx) => {
+        const platform = platformNames[idx];
+        if (res.status === 'fulfilled') {
+          successCount++;
+          detailedResults[platform] = { status: 'success' };
+          logger.info(`  ✅ ${platform}: Success`);
+        } else {
+          failCount++;
+          const errMsg = res.reason?.message || String(res.reason);
+          detailedResults[platform] = { status: 'failed', error: errMsg };
+          logger.error(`  ❌ ${platform}: Failed - ${errMsg}`);
+        }
+      });
+    } else {
+      logger.warn('⚠️ No social media platforms are currently enabled in config/platforms.js');
+    }
+  } finally {
     newState = await advancePage();
-    logger.info(`🎉 Upload task complete! (${successCount} succeeded, ${failCount} failed).`);
-    logger.info(`⏩ Page advanced to ${newState.currentPage}`);
-  } else {
-    logger.warn(`⚠️ All platform uploads failed. Page ${pageNo} will NOT be advanced and will be retried on next cron run.`);
+    logger.info(`⏩ Image page advanced to ${newState.currentPage} (${successCount} succeeded, ${failCount} failed).`);
+    logger.info(`--------------------------------------------------`);
   }
 
-  logger.info(`--------------------------------------------------`);
   return { successCount, failCount, pageNo, nextPage: newState.currentPage, results: detailedResults };
 }
 
