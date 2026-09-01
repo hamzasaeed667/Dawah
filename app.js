@@ -134,6 +134,9 @@ router.all('/refresh-tokens', requireSecretAuth, async (req, res) => {
       success: false,
       error: e.message
     });
+  }
+});
+
 // --- 4. ADMIN STATE MANAGEMENT API ---
 router.all('/set-state', requireSecretAuth, async (req, res) => {
   try {
