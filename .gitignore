@@ -141,5 +141,9 @@ tiktok_user_data/
 *.lock
 
 
+# Runtime state files (persisted via Netlify Blobs in production)
+state.json
+videoState.json
+
 # Local Netlify folder
 .netlify
