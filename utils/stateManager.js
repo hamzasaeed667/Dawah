@@ -14,7 +14,8 @@ const defaultState = {
   currentVideoPage: 1,
   lastUpload: null,
   lastVideoUpload: null,
-  maxPage: 1446
+  maxPage: 1446,
+  version: 1
 };
 
 /**
@@ -43,11 +44,10 @@ function getStateFromDisk() {
 async function getState() {
   if (isServerless) {
     const blobState = await blobGet(BLOB_STORE, BLOB_KEY);
-    if (blobState) {
-      logger.info(`[StateManager] Loaded state from Blobs: currentPage=${blobState.currentPage}`);
+    if (blobState && typeof blobState.currentPage === 'number') {
       return blobState;
     }
-    logger.info('[StateManager] No Blob state found, falling back to disk.');
+    logger.warn('[StateManager] No valid Blob state found, falling back to disk cache.');
   }
   return getStateFromDisk();
 }
@@ -58,7 +58,8 @@ async function getState() {
  */
 async function saveState(newState) {
   const currentState = await getState();
-  const merged = { ...currentState, ...newState };
+  const nextVersion = (Number(currentState.version) || 0) + 1;
+  const merged = { ...currentState, ...newState, version: nextVersion };
 
   // Always attempt Blob persistence in serverless
   if (isServerless) {
@@ -86,21 +87,29 @@ async function saveState(newState) {
       logger.error('Failed to write to tmp state file:', tmpErr.message);
     }
   }
+
+  return merged;
 }
 
 /**
- * Advance the image page counter and persist.
+ * Advance the image page counter and persist with optimistic concurrency protection.
  */
 async function advancePage() {
+  // Always fetch fresh state immediately before computing next page
   const state = await getState();
   const maxPage = Number(state.maxPage) || 1446;
   const current = Number(state.currentPage) || 1;
   const nextPage = (current >= maxPage || current < 1) ? 1 : current + 1;
-  state.currentPage = nextPage;
-  state.maxPage = maxPage;
-  state.lastUpload = new Date().toISOString();
-  await saveState(state);
-  return state;
+
+  const update = {
+    ...state,
+    currentPage: nextPage,
+    maxPage: maxPage,
+    lastUpload: new Date().toISOString()
+  };
+
+  const saved = await saveState(update);
+  return saved;
 }
 
 module.exports = {
@@ -108,3 +117,4 @@ module.exports = {
   saveState,
   advancePage
 };
+

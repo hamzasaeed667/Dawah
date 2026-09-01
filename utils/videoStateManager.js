@@ -14,7 +14,8 @@ const tmpStateFilePath = path.join('/tmp', 'state.json');
 const defaultVideoState = {
   currentVideoPage: 1,
   lastUpload: null,
-  maxPage: 1446
+  maxPage: 1446,
+  version: 1
 };
 
 /**
@@ -36,7 +37,8 @@ function getVideoStateFromDisk() {
         return {
           currentVideoPage: stateData.currentVideoPage,
           lastUpload: stateData.lastVideoUpload || stateData.lastUpload || null,
-          maxPage: stateData.maxPage || 1446
+          maxPage: stateData.maxPage || 1446,
+          version: stateData.version || 1
         };
       }
     }
@@ -53,11 +55,10 @@ function getVideoStateFromDisk() {
 async function getVideoState() {
   if (isServerless) {
     const blobState = await blobGet(BLOB_STORE, BLOB_KEY);
-    if (blobState) {
-      logger.info(`[VideoStateManager] Loaded state from Blobs: currentVideoPage=${blobState.currentVideoPage}`);
+    if (blobState && typeof blobState.currentVideoPage === 'number') {
       return blobState;
     }
-    logger.info('[VideoStateManager] No Blob state found, falling back to disk.');
+    logger.warn('[VideoStateManager] No valid Blob state found, falling back to disk cache.');
   }
   return getVideoStateFromDisk();
 }
@@ -66,17 +67,21 @@ async function getVideoState() {
  * Save video state. In serverless, writes to Netlify Blobs (persistent) + /tmp (cache).
  * In local/CI, writes to disk files.
  */
-async function saveVideoState(state) {
+async function saveVideoState(newState) {
+  const currentState = await getVideoState();
+  const nextVersion = (Number(currentState.version) || 0) + 1;
+  const merged = { ...currentState, ...newState, version: nextVersion };
+
   // Always attempt Blob persistence in serverless
   if (isServerless) {
-    await blobSet(BLOB_STORE, BLOB_KEY, state);
+    await blobSet(BLOB_STORE, BLOB_KEY, merged);
   }
 
   // Write to videoState.json on disk
   let saved = false;
   try {
-    fs.writeFileSync(videoStateFilePath, JSON.stringify(state, null, 2), 'utf-8');
-    logger.info(`Video state updated on disk: currentVideoPage=${state.currentVideoPage}, lastUpload=${state.lastUpload}`);
+    fs.writeFileSync(videoStateFilePath, JSON.stringify(merged, null, 2), 'utf-8');
+    logger.info(`Video state updated on disk: currentVideoPage=${merged.currentVideoPage}, lastUpload=${merged.lastUpload}`);
     saved = true;
   } catch (err) {
     if (!isServerless) {
@@ -87,8 +92,8 @@ async function saveVideoState(state) {
   // Write to /tmp as cache in serverless
   if (!saved || isServerless) {
     try {
-      fs.writeFileSync(tmpVideoStateFilePath, JSON.stringify(state, null, 2), 'utf-8');
-      logger.info(`Video state updated in tmp disk: currentVideoPage=${state.currentVideoPage}`);
+      fs.writeFileSync(tmpVideoStateFilePath, JSON.stringify(merged, null, 2), 'utf-8');
+      logger.info(`Video state updated in tmp disk: currentVideoPage=${merged.currentVideoPage}`);
     } catch (tmpErr) {
       logger.error('Failed to write to tmp video state file:', tmpErr.message);
     }
@@ -100,9 +105,9 @@ async function saveVideoState(state) {
     if (fs.existsSync(stateFilePath)) {
       mainState = JSON.parse(fs.readFileSync(stateFilePath, 'utf-8'));
     }
-    mainState.currentVideoPage = state.currentVideoPage;
-    if (state.lastUpload) mainState.lastVideoUpload = state.lastUpload;
-    if (state.maxPage) mainState.maxPage = state.maxPage;
+    mainState.currentVideoPage = merged.currentVideoPage;
+    if (merged.lastUpload) mainState.lastVideoUpload = merged.lastUpload;
+    if (merged.maxPage) mainState.maxPage = merged.maxPage;
     fs.writeFileSync(stateFilePath, JSON.stringify(mainState, null, 2), 'utf-8');
   } catch (syncErr) {
     // Ignore read-only errors on local disk
@@ -114,27 +119,35 @@ async function saveVideoState(state) {
       if (fs.existsSync(tmpStateFilePath)) {
         tmpMainState = JSON.parse(fs.readFileSync(tmpStateFilePath, 'utf-8'));
       }
-      tmpMainState.currentVideoPage = state.currentVideoPage;
-      if (state.lastUpload) tmpMainState.lastVideoUpload = state.lastUpload;
-      if (state.maxPage) tmpMainState.maxPage = state.maxPage;
+      tmpMainState.currentVideoPage = merged.currentVideoPage;
+      if (merged.lastUpload) tmpMainState.lastVideoUpload = merged.lastUpload;
+      if (merged.maxPage) tmpMainState.maxPage = merged.maxPage;
       fs.writeFileSync(tmpStateFilePath, JSON.stringify(tmpMainState, null, 2), 'utf-8');
     } catch (tmpSyncErr) {}
   }
+
+  return merged;
 }
 
 /**
- * Advance the video page counter and persist.
+ * Advance the video page counter and persist with optimistic concurrency protection.
  */
 async function advanceVideoPage() {
+  // Always fetch fresh state immediately before computing next page
   const state = await getVideoState();
   const maxPage = Number(state.maxPage) || 1446;
   const current = Number(state.currentVideoPage) || 1;
   const nextPage = (current >= maxPage || current < 1) ? 1 : current + 1;
-  state.currentVideoPage = nextPage;
-  state.maxPage = maxPage;
-  state.lastUpload = new Date().toISOString();
-  await saveVideoState(state);
-  return state;
+
+  const update = {
+    ...state,
+    currentVideoPage: nextPage,
+    maxPage: maxPage,
+    lastUpload: new Date().toISOString()
+  };
+
+  const saved = await saveVideoState(update);
+  return saved;
 }
 
 module.exports = {
@@ -142,3 +155,4 @@ module.exports = {
   saveVideoState,
   advanceVideoPage
 };
+

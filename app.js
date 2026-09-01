@@ -3,8 +3,8 @@ const express = require('express');
 const uploadCronTask = require('./cron/uploadPage');
 const uploadVideoCronTask = require('./cron/uploadVideo');
 const { refreshAllTokens } = require('./cron/refreshTokens');
-const { getState } = require('./utils/stateManager');
-const { getVideoState } = require('./utils/videoStateManager');
+const { getState, saveState } = require('./utils/stateManager');
+const { getVideoState, saveVideoState } = require('./utils/videoStateManager');
 const { loadTokensFromBlobs } = require('./utils/envUtils');
 const platforms = require('./config/platforms');
 const logger = require('./utils/logger');
@@ -134,6 +134,43 @@ router.all('/refresh-tokens', requireSecretAuth, async (req, res) => {
       success: false,
       error: e.message
     });
+// --- 4. ADMIN STATE MANAGEMENT API ---
+router.all('/set-state', requireSecretAuth, async (req, res) => {
+  try {
+    const payload = { ...req.query, ...req.body };
+    const updates = {};
+
+    if (payload.currentPage !== undefined) {
+      const page = parseInt(payload.currentPage, 10);
+      if (!isNaN(page)) {
+        await saveState({ currentPage: page });
+        updates.currentPage = page;
+      }
+    }
+
+    if (payload.currentVideoPage !== undefined) {
+      const vPage = parseInt(payload.currentVideoPage, 10);
+      if (!isNaN(vPage)) {
+        await saveVideoState({ currentVideoPage: vPage });
+        updates.currentVideoPage = vPage;
+      }
+    }
+
+    const currentImgState = await getState();
+    const currentVidState = await getVideoState();
+
+    return res.status(200).json({
+      success: true,
+      message: 'State updated successfully',
+      applied: updates,
+      currentState: {
+        images: currentImgState,
+        videos: currentVidState
+      }
+    });
+  } catch (err) {
+    logger.error('❌ Failed to update state via /set-state:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
