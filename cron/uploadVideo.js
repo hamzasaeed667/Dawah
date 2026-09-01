@@ -23,10 +23,15 @@ function generateVideoTitle(videoPageNo, maxPage) {
   return `Page ${videoPageNo} of ${maxPage} | ${hook}`;
 }
 
+const { isServerless } = require('../utils/blobStore');
+
 async function uploadTikTokWithFallback(videoUrl, title) {
   try {
     return await uploadVideoToTikTok(videoUrl, title);
   } catch (apiErr) {
+    if (isServerless) {
+      throw apiErr;
+    }
     logger.warn(`[TikTok Cron] API direct post unavailable (${apiErr.message}). Switching to TikTok Studio Browser Automation...`);
     return await uploadVideoViaBrowser(videoUrl, title, { headless: true });
   }
